@@ -123,6 +123,11 @@ pub fn set_pending(app: &AppHandle, count: u32) {
         let _ = items.pedido.set_text(pending_label(count));
         let _ = items.pedido.set_enabled(count > 0);
     }
+    // macOS (F10): la insignia del Dock con los pedidos pendientes (sin insignia con 0).
+    #[cfg(target_os = "macos")]
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.set_badge_count(alfredo_macos::window::badge_text(count).map(|_| count.min(99) as i64));
+    }
 }
 
 pub fn notify(app: &AppHandle, title: &str, body: &str) {

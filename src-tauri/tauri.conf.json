@@ -12,12 +12,19 @@
     "windows": [],
     "security": {
       "csp": null,
-      "capabilities": ["local", "remote"]
+      "capabilities": [
+        "local",
+        "remote"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "app", "dmg"],
+    "targets": [
+      "nsis",
+      "app",
+      "dmg"
+    ],
     "publisher": "CreceTec SpA",
     "copyright": "© 2026 CreceTec SpA",
     "category": "Business",
@@ -34,11 +41,15 @@
     ],
     "resources": [],
     "windows": {
-      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
       "allowDowngrades": false,
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Spanish"],
+        "languages": [
+          "Spanish"
+        ],
         "displayLanguageSelector": false,
         "installerIcon": "icons/icon.ico",
         "installerHooks": "windows/hooks.nsh",
@@ -46,14 +57,20 @@
       }
     },
     "macOS": {
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "hardenedRuntime": true,
+      "entitlements": "../macos/Entitlements.plist"
     }
   },
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM5NUE0QUU1MjA3RkY5RjMKUldUeitYOGc1VXBhT1NJSWNQTDNaam5YVTRsblBCaG9ReE1CYmM1azBURmJxdW4vQ3JiKzVudTAK",
-      "endpoints": ["https://api.asistentealfredo.cl/api/desktop/update?target={{target}}&arch={{arch}}&current_version={{current_version}}"],
-      "windows": { "installMode": "passive" }
+      "endpoints": [
+        "https://api.asistentealfredo.cl/api/desktop/update?target={{target}}&arch={{arch}}&current_version={{current_version}}"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

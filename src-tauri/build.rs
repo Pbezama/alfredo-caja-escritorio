@@ -11,6 +11,7 @@ fn main() {
             "printers_discover",
             "printers_print",
             "printers_status",
+            "printers_create_queue",
             "notify_incoming",
             "notify_clear",
             "window_bring_to_front",

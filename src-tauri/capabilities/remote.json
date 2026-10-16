@@ -16,6 +16,7 @@
     "allow-printers-discover",
     "allow-printers-print",
     "allow-printers-status",
+    "allow-printers-create-queue",
     "allow-notify-incoming",
     "allow-notify-clear",
     "allow-window-bring-to-front",

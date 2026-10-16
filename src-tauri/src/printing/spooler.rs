@@ -70,6 +70,7 @@ pub fn send(queue: &str, bytes: &[u8]) -> Result<(), PrintError> {
     }
     let mut child = Command::new("lp")
         .args(lp_args(queue))
+        .env("LC_ALL", "C")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -86,7 +87,13 @@ pub fn send(queue: &str, bytes: &[u8]) -> Result<(), PrintError> {
     }
 }
 
-#[cfg(not(windows))]
+/// macOS (F10): estado y motivos de la cola con `lpstat -l -p` (sin papel, tapa, pausada…).
+#[cfg(target_os = "macos")]
+pub fn status(queue: &str) -> String {
+    alfredo_macos::cups::state(queue).as_str().to_string()
+}
+
+#[cfg(all(not(windows), not(target_os = "macos")))]
 pub fn status(queue: &str) -> String {
     let out = std::process::Command::new("lpstat").args(["-p", queue]).output();
     match out {

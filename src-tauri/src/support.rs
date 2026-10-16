@@ -13,10 +13,53 @@ use std::path::{Path, PathBuf};
 pub const DEFAULT_URL: &str = "https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86_64.exe";
 #[cfg(windows)]
 pub const DEFAULT_SHA256: &str = "8555777215510d83d2d61c9dc984e4fcc838bd7e79f9d18a42585431f5e8bb47";
-#[cfg(target_os = "macos")]
+// macOS (F10): el binario es universal; cada mitad trae el DMG de su procesador.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub const DEFAULT_URL: &str = "https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-aarch64.dmg";
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub const DEFAULT_SHA256: &str = "3929b0a4321e7d0f561a317059798be882d65decc59681eb77061f8efe56fbf4";
+#[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+pub const DEFAULT_URL: &str = "https://github.com/rustdesk/rustdesk/releases/download/1.5.0/rustdesk-1.5.0-x86_64.dmg";
+#[cfg(all(target_os = "macos", not(target_arch = "aarch64")))]
+pub const DEFAULT_SHA256: &str = "1ca3cbfbe7f2bd28b50c93fcd50d4a0b671dc76d18be27cea99d3a65767eb526";
+
+/// macOS (F10 T10.8): monta el DMG verificado (`hdiutil attach -nobrowse`), copia la app a
+/// `~/Applications/Alfredo Soporte/` y la devuelve para abrirla. macOS pide a mano los permisos
+/// de Grabación de pantalla y Accesibilidad: quien llama abre esas pantallas de Ajustes.
+#[cfg(target_os = "macos")]
+pub fn install_from_dmg(dmg: &Path, home: &Path) -> Result<PathBuf, String> {
+    use std::process::Command;
+    let mnt = std::env::temp_dir().join(format!("alfredo-soporte-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&mnt);
+    let ok = Command::new("/usr/bin/hdiutil")
+        .args(["attach", "-nobrowse", "-readonly", "-quiet", "-mountpoint"])
+        .arg(&mnt)
+        .arg(dmg)
+        .status()
+        .map_err(|e| e.to_string())?
+        .success();
+    if !ok {
+        return Err("no se pudo montar la herramienta de soporte".into());
+    }
+    let app = std::fs::read_dir(&mnt)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| p.extension().map(|x| x == "app").unwrap_or(false));
+    let dest_dir = home.join("Applications").join("Alfredo Soporte");
+    let result = match app {
+        Some(src) => {
+            let dest = dest_dir.join(src.file_name().unwrap());
+            let _ = std::fs::create_dir_all(&dest_dir);
+            let _ = std::fs::remove_dir_all(&dest);
+            let copied = Command::new("/usr/bin/ditto").arg(&src).arg(&dest).status().map(|s| s.success()).unwrap_or(false);
+            if copied { Ok(dest) } else { Err("no se pudo copiar la herramienta de soporte".into()) }
+        }
+        None => Err("el DMG no trae una app".into()),
+    };
+    let _ = Command::new("/usr/bin/hdiutil").args(["detach", "-quiet"]).arg(&mnt).status();
+    result
+}
 #[cfg(not(any(windows, target_os = "macos")))]
 pub const DEFAULT_URL: &str = "";
 #[cfg(not(any(windows, target_os = "macos")))]

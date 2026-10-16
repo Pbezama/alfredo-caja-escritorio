@@ -4,8 +4,12 @@
 //! - PDF o A4 a una cola con driver (la láser del local, una AirPrint que macOS ya tiene):
 //!   `lp -d <cola>` con el archivo.
 //! - Estado: `lpstat -l -p <cola>` (estado y motivos) y la lista de colas con `lpstat -v`.
-//! - Una térmica USB sin cola: `lpadmin -p Alfredo_<modelo> -E -v <uri> -m raw` con privilegios de
-//!   administrador (`osascript … with administrator privileges`, que muestra el diálogo de macOS).
+//! - Una térmica USB sin cola: `lpadmin -p Alfredo_<modelo> -E -v <uri> -m drv:///sample.drv/generic.ppd`
+//!   con privilegios de administrador (`osascript … with administrator privileges`, que muestra el
+//!   diálogo de macOS). **macOS 26 ya no acepta colas `-m raw`** («ya no se admiten colas sin
+//!   procesar en macOS», probado el 16-10-2026): se crea una cola con el PPD genérico y se imprime
+//!   siempre con `lp -o raw`, que pasa los bytes sin filtro (probado byte a byte contra un *listener*
+//!   TCP: ESC/POS, tildes en cp858 y corte llegan idénticos).
 //!
 //! Se usan los binarios de CUPS que trae macOS en vez de libcups por FFI: mismo resultado, sin
 //! enlazar contra una API que Apple marca como obsoleta, y los argumentos se prueban como texto.
@@ -121,10 +125,12 @@ pub fn lp_pdf_args(queue: &str, file: &str, copies: u8, media: Option<&str>) -> 
     a
 }
 
-/// `request id is POS80-123 (1 file(s))` → `POS80-123`.
+/// `request id is POS80-123 (1 file(s))` → `POS80-123` (también la salida en español de macOS:
+/// `el id de la petición es POS80-123 (0 archivos)`; igual se llama con LANG=C).
 pub fn parse_request_id(stdout: &str) -> Option<String> {
-    let line = stdout.lines().find(|l| l.contains("request id is"))?;
-    let rest = line.split("request id is").nth(1)?.trim();
+    const MARCAS: [&str; 2] = ["request id is", "id de la petición es"];
+    let (line, marca) = stdout.lines().find_map(|l| MARCAS.iter().find(|m| l.contains(**m)).map(|m| (l, *m)))?;
+    let rest = line.split(marca).nth(1)?.trim();
     let id = rest.split_whitespace().next()?;
     if id.is_empty() {
         None
@@ -175,12 +181,12 @@ pub fn parse_lpstat_devices(output: &str) -> Vec<CupsQueue> {
         .collect()
 }
 
-/// Comando de shell (para `osascript … with administrator privileges`) que crea una cola *raw*
-/// para una térmica USB. Todo va entre comillas simples escapadas: nombres con espacios y
+/// Comando de shell (para `osascript … with administrator privileges`) que crea la cola de una
+/// térmica USB (PPD genérico; se le imprime con `lp -o raw`). Todo va entre comillas simples escapadas: nombres con espacios y
 /// tildes no rompen el comando.
 pub fn lpadmin_raw_queue_command(queue: &str, device_uri: &str) -> String {
     format!(
-        "/usr/sbin/lpadmin -p {} -E -v {} -m raw && /usr/sbin/cupsenable {} && /usr/sbin/cupsaccept {}",
+        "/usr/sbin/lpadmin -p {} -E -v {} -m drv:///sample.drv/generic.ppd && /usr/sbin/cupsenable {} && /usr/sbin/cupsaccept {}",
         shell_quote(queue),
         shell_quote(device_uri),
         shell_quote(queue),
@@ -208,6 +214,7 @@ mod sys {
     pub fn print_raw(queue: &str, bytes: &[u8], copies: u8) -> Result<String, String> {
         let mut child = Command::new("/usr/bin/lp")
             .args(lp_raw_args(queue, copies, "Alfredo"))
+            .env("LC_ALL", "C")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -222,7 +229,7 @@ mod sys {
     }
 
     pub fn print_pdf(queue: &str, file: &str, copies: u8, media: Option<&str>) -> Result<String, String> {
-        let out = Command::new("/usr/bin/lp").args(lp_pdf_args(queue, file, copies, media)).output().map_err(|e| e.to_string())?;
+        let out = Command::new("/usr/bin/lp").args(lp_pdf_args(queue, file, copies, media)).env("LC_ALL", "C").output().map_err(|e| e.to_string())?;
         if !out.status.success() {
             return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
         }
@@ -230,14 +237,14 @@ mod sys {
     }
 
     pub fn state(queue: &str) -> PrinterState {
-        match Command::new("/usr/bin/lpstat").args(["-l", "-p", queue]).env("LANG", "C").output() {
+        match Command::new("/usr/bin/lpstat").args(["-l", "-p", queue]).env("LC_ALL", "C").output() {
             Ok(o) if o.status.success() => parse_lpstat_state(&String::from_utf8_lossy(&o.stdout)),
             _ => PrinterState::Offline,
         }
     }
 
     pub fn queues() -> Vec<CupsQueue> {
-        match Command::new("/usr/bin/lpstat").arg("-v").env("LANG", "C").output() {
+        match Command::new("/usr/bin/lpstat").arg("-v").env("LC_ALL", "C").output() {
             Ok(o) => parse_lpstat_devices(&String::from_utf8_lossy(&o.stdout)),
             Err(_) => vec![],
         }
@@ -285,6 +292,7 @@ mod tests {
     #[test]
     fn id_del_trabajo() {
         assert_eq!(parse_request_id("request id is POS80-123 (1 file(s))\n").as_deref(), Some("POS80-123"));
+        assert_eq!(parse_request_id("el id de la petición es Alfredo_F10_Prueba-68 (0 archivos)").as_deref(), Some("Alfredo_F10_Prueba-68"));
         assert_eq!(parse_request_id("lp: error"), None);
     }
 
@@ -311,7 +319,42 @@ mod tests {
     #[test]
     fn lpadmin_con_comillas() {
         let c = lpadmin_raw_queue_command("Alfredo_XP-80", "usb://Xprinter/XP 80?serial=1'2");
-        assert!(c.starts_with("/usr/sbin/lpadmin -p 'Alfredo_XP-80' -E -v 'usb://Xprinter/XP 80?serial=1'\\''2' -m raw"));
+        assert!(c.starts_with("/usr/sbin/lpadmin -p 'Alfredo_XP-80' -E -v 'usb://Xprinter/XP 80?serial=1'\\''2' -m drv:///sample.drv/generic.ppd"));
         assert_eq!(osascript_admin("echo \"hola\""), "do shell script \"echo \\\"hola\\\"\" with administrator privileges");
+    }
+}
+
+/// Prueba de punta a punta contra CUPS real: cola con el PPD genérico a un *listener* TCP local y
+/// `lp -o raw`. Sólo con `ALFREDO_CUPS_E2E=1` (crea y borra una cola: pide permisos de lpadmin).
+#[cfg(all(test, target_os = "macos"))]
+mod e2e {
+    use super::*;
+    use std::io::Read;
+    use std::net::TcpListener;
+    use std::process::Command;
+
+    #[test]
+    fn lp_raw_pasa_los_bytes_sin_filtro() {
+        if std::env::var("ALFREDO_CUPS_E2E").ok().as_deref() != Some("1") {
+            return;
+        }
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let queue = "Alfredo_Test_E2E";
+        let ok = Command::new("/usr/sbin/lpadmin")
+            .args(["-p", queue, "-E", "-v", &format!("socket://127.0.0.1:{port}"), "-m", "drv:///sample.drv/generic.ppd"])
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "lpadmin falló");
+        let bytes = b"\x1b@Alfredo \xa0\x82\n\x1dV\x01".to_vec();
+        let id = print_raw(queue, &bytes, 1).expect("lp");
+        assert!(!id.is_empty());
+        let (mut sock, _) = listener.accept().unwrap();
+        sock.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+        let mut got = vec![];
+        let _ = sock.read_to_end(&mut got);
+        let _ = Command::new("/usr/sbin/lpadmin").args(["-x", queue]).status();
+        assert_eq!(got, bytes);
     }
 }

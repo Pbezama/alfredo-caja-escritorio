@@ -30,6 +30,7 @@ dependencies = [
 name = "alfredo-caja"
 version = "0.1.0"
 dependencies = [
+ "alfredo-macos",
  "base64 0.22.1",
  "chrono",
  "hex",
@@ -62,6 +63,15 @@ dependencies = [
  "tokio",
  "url",
  "windows 0.61.3",
+]
+
+[[package]]
+name = "alfredo-macos"
+version = "0.1.0"
+dependencies = [
+ "core-foundation 0.10.1",
+ "security-framework 3.7.0",
+ "sha2",
 ]
 
 [[package]]

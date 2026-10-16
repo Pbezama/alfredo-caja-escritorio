@@ -1,5 +1,7 @@
-# Alfredo Caja para Windows (F9 T9.10): tests de Rust, build del instalador NSIS en
-# windows-latest, firma del updater de Tauri, firma Authenticode (si hay certificado) y release.
+# Alfredo Caja para Windows (F9 T9.10) y Mac (F10 T10.9): tests de Rust, build del instalador NSIS
+# en windows-latest y del binario universal + DMG en macos-latest, firma del updater de Tauri,
+# firma Authenticode (si hay certificado), Developer ID y notarización de Apple (si están los
+# secretos) y release.
 #
 # - pull_request / push a main con cambios en apps/desktop: cargo test + build (artefacto).
 # - etiqueta desktop-vX.Y.Z (o workflow_dispatch con `publicar`): además crea la release de
@@ -15,11 +17,16 @@
 #   DESKTOP_PUBLISH_TOKEN                                          registrar la versión en el backend
 #   ES_USERNAME, ES_PASSWORD, ES_CREDENTIAL_ID, ES_TOTP_SECRET     Authenticode con SSL.com eSigner (opcional:
 #                                                                  sin ellos el instalador sale SIN firmar, canal beta)
+#   APPLE_CERTIFICATE (p12 en base64), APPLE_CERTIFICATE_PASSWORD  Developer ID de CreceTec (Mac; sin ellos el job sólo
+#   APPLE_API_KEY, APPLE_API_ISSUER, APPLE_API_KEY_P8 (contenido)  compila y prueba, sin publicar)
+#
+# El Mac se publica con la etiqueta desktop-mac-vX.Y.Z (release propia) o con tools/release/desktop-mac.sh
+# desde el Mac de Pablo (mismos pasos).
 name: desktop-release
 on:
   push:
     branches: [main]
-    tags: ["desktop-v*"]
+    tags: ["desktop-v*", "desktop-mac-v*"]
     paths: ["apps/desktop/**", ".github/workflows/desktop-release.yml", "src-tauri/**", "src/**"]
   pull_request:
     paths: ["apps/desktop/**", ".github/workflows/desktop-release.yml"]
@@ -38,7 +45,99 @@ permissions:
   contents: write
 
 jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            ${{ env.DESKTOP_DIR }}/src-tauri
+            ${{ env.DESKTOP_DIR }}/macos
+      - name: Llavero de prueba (test del Llavero)
+        run: |
+          security create-keychain -p ci ci.keychain-db
+          security default-keychain -s ci.keychain-db
+          security unlock-keychain -p ci ci.keychain-db
+      - name: Tests de Rust en macOS (alfredo-macos y el escritorio)
+        run: |
+          (cd "$DESKTOP_DIR/macos" && cargo test)
+          (cd "$DESKTOP_DIR/src-tauri" && cargo test --locked)
+      - name: Versión
+        id: ver
+        run: |
+          V=$(node -p "require('./$DESKTOP_DIR/package.json').version")
+          PUB=false
+          if [[ "$GITHUB_REF" == refs/tags/desktop-mac-v* ]]; then V="${GITHUB_REF#refs/tags/desktop-mac-v}"; PUB=true; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "publicar=$PUB" >> "$GITHUB_OUTPUT"
+      - name: Build universal (firma Developer ID si hay secretos)
+        working-directory: ${{ env.DESKTOP_DIR }}
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          # Con el certificado, Tauri lo importa a un llavero temporal y firma con Developer ID.
+          if [[ -n "$APPLE_CERTIFICATE" ]]; then export APPLE_SIGNING_IDENTITY="Developer ID Application: CreceTec SpA (5894Q84A9X)"; else unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD; fi
+          EXTRA="{\"version\":\"$V\""
+          [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]] && EXTRA="$EXTRA,\"bundle\":{\"createUpdaterArtifacts\":false}"
+          EXTRA="$EXTRA}"
+          npx --yes @tauri-apps/cli@2 build --target universal-apple-darwin --bundles app,dmg --config "$EXTRA"
+          lipo -archs "src-tauri/target/universal-apple-darwin/release/bundle/macos/Alfredo Caja.app/Contents/MacOS/Alfredo Caja"
+      - name: Notarizar y grapar el DMG
+        if: steps.ver.outputs.publicar == 'true'
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          if [[ -z "$APPLE_API_KEY" || -z "$APPLE_CERTIFICATE" ]]; then echo "Sin secretos de Apple: no se publica el Mac desde la CI (usar tools/release/desktop-mac.sh)"; exit 1; fi
+          echo "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          DMG=$(ls "$DESKTOP_DIR"/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          codesign -s "Developer ID Application: CreceTec SpA (5894Q84A9X)" --timestamp "$DMG"
+          xcrun notarytool submit "$DMG" --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$APPLE_API_KEY" --issuer "$APPLE_API_ISSUER" --wait --timeout 2h
+          xcrun stapler staple "$DMG"
+          spctl -a -vvv -t install "$DMG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alfredo-caja-mac-${{ steps.ver.outputs.version }}
+          path: |
+            ${{ env.DESKTOP_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            ${{ env.DESKTOP_DIR }}/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.tar.gz*
+          if-no-files-found: warn
+      - name: Release de GitHub y registro (beta, inactiva)
+        if: steps.ver.outputs.publicar == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DESKTOP_PUBLISH_TOKEN: ${{ secrets.DESKTOP_PUBLISH_TOKEN }}
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          B="$DESKTOP_DIR/src-tauri/target/universal-apple-darwin/release/bundle"
+          TAG="desktop-mac-v$V"
+          cp "$(ls "$B"/dmg/*.dmg | head -1)" "Alfredo-Caja_${V}_universal.dmg"
+          cp "$B/macos/Alfredo Caja.app.tar.gz" "Alfredo-Caja_${V}_universal.app.tar.gz"
+          cp "$B/macos/Alfredo Caja.app.tar.gz.sig" "Alfredo-Caja_${V}_universal.app.tar.gz.sig"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease --title "Alfredo Caja $V (Mac, beta)" --notes "Alfredo Caja para Mac $V (beta). Firmada con Developer ID y notarizada por Apple." --target "$GITHUB_SHA"
+          gh release upload "$TAG" --clobber "Alfredo-Caja_${V}_universal.dmg" "Alfredo-Caja_${V}_universal.app.tar.gz" "Alfredo-Caja_${V}_universal.app.tar.gz.sig"
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG"
+          [[ -z "$DESKTOP_PUBLISH_TOKEN" ]] && { echo "Sin DESKTOP_PUBLISH_TOKEN: no se registra"; exit 0; }
+          node "$( [[ -f tools/release/desktop-publicar.mjs ]] && echo tools/release/desktop-publicar.mjs || echo desktop-publicar.mjs )" \
+            --version "$V" --target darwin --arch universal \
+            --url "$BASE/Alfredo-Caja_${V}_universal.app.tar.gz" --file "Alfredo-Caja_${V}_universal.app.tar.gz" \
+            --sig "Alfredo-Caja_${V}_universal.app.tar.gz.sig" --download-url "$BASE/Alfredo-Caja_${V}_universal.dmg" --channel beta
+
   windows:
+    if: ${{ !startsWith(github.ref, 'refs/tags/desktop-mac-v') }}
     runs-on: windows-latest
     defaults:
       run:

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Tauri lo fusiona con el Info.plist que genera (src-tauri/Info.plist). F10: textos de los permisos
+     que pide macOS (T10.2, T10.4) y App Nap apagado (T10.5): el polling sigue con la ventana oculta. -->
+<plist version="1.0">
+<dict>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSAppSleepDisabled</key><true/>
+  <key>LSApplicationCategoryType</key><string>public.app-category.business</string>
+  <key>NSLocalNetworkUsageDescription</key><string>Alfredo Caja busca e imprime en las impresoras de red de tu local.</string>
+  <key>NSBonjourServices</key>
+  <array><string>_pdl-datastream._tcp</string><string>_printer._tcp</string><string>_ipp._tcp</string></array>
+  <key>NSAppleEventsUsageDescription</key><string>Alfredo Caja pide la clave de administrador para crear la cola de tu impresora.</string>
+  <key>NSUserNotificationsUsageDescription</key><string>Alfredo Caja te avisa cuando entra un pedido.</string>
+</dict>
+</plist>

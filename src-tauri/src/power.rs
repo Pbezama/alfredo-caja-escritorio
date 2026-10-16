@@ -3,8 +3,10 @@
 //!
 //! Windows: `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED [| ES_DISPLAY_REQUIRED])`.
 //! El estado es POR HILO: se llama siempre desde el hilo principal (vive lo que la app).
-//! macOS (base de F10): `caffeinate -i [-d] -w <pid>` como proceso hijo; F10 lo cambia por
-//! IOPMAssertion.
+//! macOS (F10): *assertions* de IOKit `PreventUserIdleSystemSleep` [+ `PreventUserIdleDisplaySleep`]
+//! con la razón «Alfredo Caja recibiendo pedidos» (se ven en `pmset -g assertions`); si IOKit
+//! falla, `caffeinate -i [-d] -w <pid>` como respaldo. App Nap va apagado por Info.plist
+//! (`NSAppSleepDisabled`).
 //!
 //! Vuelta de una suspensión: un hilo marca la hora cada 5 s; si entre dos marcas pasaron
 //! más de 30 s de reloj, el equipo durmió y se emite `resume-from-sleep` a la web.
@@ -50,14 +52,23 @@ pub fn apply(on: bool, display: bool) {
 #[cfg(target_os = "macos")]
 pub fn apply(on: bool, display: bool) {
     use std::sync::Mutex;
+    static ASSERTIONS: Mutex<Option<alfredo_macos::power::KeepAwake>> = Mutex::new(None);
     static CHILD: Mutex<Option<std::process::Child>> = Mutex::new(None);
-    let mut g = CHILD.lock().unwrap();
-    if let Some(mut c) = g.take() {
+    // Soltar lo anterior (al soltar, macOS vuelve a su política).
+    ASSERTIONS.lock().unwrap().take();
+    if let Some(mut c) = CHILD.lock().unwrap().take() {
         let _ = c.kill();
         let _ = c.wait();
     }
-    if on {
-        *g = std::process::Command::new("/usr/bin/caffeinate").args(caffeinate_args(display, std::process::id())).spawn().ok();
+    if !on {
+        return;
+    }
+    match alfredo_macos::power::KeepAwake::new(display) {
+        Ok(a) => *ASSERTIONS.lock().unwrap() = Some(a),
+        Err(e) => {
+            log::warn!("IOPMAssertion falló ({e}): uso caffeinate");
+            *CHILD.lock().unwrap() = std::process::Command::new("/usr/bin/caffeinate").args(caffeinate_args(display, std::process::id())).spawn().ok();
+        }
     }
 }
 

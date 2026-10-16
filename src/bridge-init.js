@@ -82,7 +82,9 @@
         var u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
         return invoke("printers_print", { key: key, data: toBase64(u8), copies: opts && opts.copies ? opts.copies : null });
       },
-      status: function (key) { return invoke("printers_status", { key: key }); }
+      status: function (key) { return invoke("printers_status", { key: key }); },
+      // Sólo Mac (F10): cola de CUPS para una térmica USB; macOS pide la clave de administrador.
+      createQueue: function (model, deviceUri) { return invoke("printers_create_queue", { model: model, deviceUri: deviceUri }); }
     },
     notify: {
       incomingOrders: function (count, text) { fire(invoke("notify_incoming", { count: Math.max(0, count | 0), text: text || null })); },

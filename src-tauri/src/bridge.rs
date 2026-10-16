@@ -175,6 +175,28 @@ pub async fn printers_print(webview: Webview, app: AppHandle, key: String, data:
     r
 }
 
+/// macOS (F10 T10.3): crea la cola de CUPS de una térmica USB (PPD genérico; se le imprime con
+/// `lp -o raw`). macOS muestra el diálogo de la clave de administrador. Devuelve el nombre de la cola.
+#[tauri::command]
+pub async fn printers_create_queue(webview: Webview, model: String, device_uri: String) -> Result<String, PrintError> {
+    require_staff(&webview)?;
+    if !(device_uri.starts_with("usb://") || device_uri.starts_with("socket://") || device_uri.starts_with("serial:")) {
+        return Err(PrintError::new("bad_request", "Dirección de impresora no válida"));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        tokio::task::spawn_blocking(move || alfredo_macos::cups::create_raw_queue(&model, &device_uri))
+            .await
+            .map_err(|e| PrintError::new("error", e.to_string()))?
+            .map_err(|e| PrintError::new("error", format!("No se creó la cola: {e}")))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (model, device_uri);
+        Err(PrintError::new("bad_request", "Sólo en Mac"))
+    }
+}
+
 #[tauri::command]
 pub async fn printers_status(webview: Webview, state: State<'_, AppState>, key: String) -> Result<String, PrintError> {
     require_staff(&webview)?;
@@ -279,6 +301,21 @@ pub async fn start_support(app: &AppHandle) -> SupportOut {
         }
         let _ = std::fs::write(&file, &bytes);
     }
+    // macOS (F10): el DMG se monta y la app se copia a ~/Applications/Alfredo Soporte/.
+    #[cfg(target_os = "macos")]
+    let file = if file.extension().map(|x| x == "dmg").unwrap_or(false) {
+        let home = std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_default();
+        match support::install_from_dmg(&file, &home) {
+            Ok(app_path) => {
+                // macOS sólo deja dar estos permisos a mano: se abre la pantalla de Ajustes.
+                let _ = app.opener().open_url(alfredo_macos::support::SETTINGS_SCREEN_CAPTURE, None::<&str>);
+                app_path
+            }
+            Err(e) => return SupportOut { id: None, message: Some(format!("No se pudo preparar la herramienta de soporte: {e}")) },
+        }
+    } else {
+        file
+    };
     if let Err(e) = app.opener().open_path(file.to_string_lossy().to_string(), None::<&str>) {
         return SupportOut { id: None, message: Some(format!("No se pudo abrir la herramienta de soporte: {e}")) };
     }

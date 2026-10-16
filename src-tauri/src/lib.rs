@@ -95,6 +95,7 @@ pub fn run() {
             bridge::printers_discover,
             bridge::printers_print,
             bridge::printers_status,
+            bridge::printers_create_queue,
             bridge::notify_incoming,
             bridge::notify_clear,
             bridge::window_bring_to_front,
