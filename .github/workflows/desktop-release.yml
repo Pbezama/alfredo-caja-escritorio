@@ -71,10 +71,17 @@ jobs:
           (cd "$DESKTOP_DIR/src-tauri" && cargo test --locked)
       - name: Versión
         id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           V=$(node -p "require('./$DESKTOP_DIR/package.json').version")
           PUB=false
           if [[ "$GITHUB_REF" == refs/tags/desktop-mac-v* ]]; then V="${GITHUB_REF#refs/tags/desktop-mac-v}"; PUB=true; fi
+          # desktop-mac.sh --publicar (desde el Mac) crea la etiqueta junto con la release y sube el
+          # DMG ya notarizado: no se vuelve a compilar ni a subir otro DMG con otro hash.
+          if [[ $PUB == true ]] && gh release view "${GITHUB_REF#refs/tags/}" --json assets --jq '.assets[].name' 2>/dev/null | grep -q "_universal.dmg$"; then
+            echo "La release ya tiene el DMG (publicada desde el Mac): sólo tests y build."; PUB=false
+          fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "publicar=$PUB" >> "$GITHUB_OUTPUT"
       - name: Build universal (firma Developer ID si hay secretos)
