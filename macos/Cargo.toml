@@ -1,0 +1,17 @@
+[package]
+name = "alfredo-macos"
+version = "0.1.0"
+edition = "2021"
+description = "Lo propio de macOS de Alfredo Caja de escritorio (F10): CUPS, puertos serie, anti-suspensión, Llavero, identidad del equipo, Dock y traer al frente. Lo usa el crate Tauri de apps/desktop (F9)."
+license = "UNLICENSED"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+sha2 = "0.10"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+core-foundation = "0.10"

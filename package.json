@@ -1,0 +1,17 @@
+{
+  "name": "@restaurantya/desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Alfredo Caja de escritorio (Windows; Mac en F10): Tauri v2 que envuelve la web staff del local con impresión directa, bandeja, alarma, anti-suspensión y auto-update.",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build:desktop": "tauri build",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.3"
+  }
+}

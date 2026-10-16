@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Ajusta el reloj · Alfredo Caja</title><link rel="stylesheet" href="shell.css"><script src="shell.js"></script></head>
+<body>
+<main>
+  <div class="marca"><img src="icono.png" alt=""><span>Alfredo Caja</span></div>
+  <h1>Por favor, ajusta el reloj de tu equipo</h1>
+  <p id="detalle">La fecha o la hora de este equipo no coinciden con la real. Así Alfredo no puede conectarse de forma segura ni mostrar bien los tiempos de los pedidos.</p>
+  <ol>
+    <li>Toca «Abrir ajustes de fecha y hora».</li>
+    <li>Activa «Establecer la hora automáticamente» y la zona horaria automática.</li>
+    <li>Vuelve aquí y toca «Ya lo ajusté».</li>
+  </ol>
+  <div class="acciones">
+    <button class="primario" id="ajustes">Abrir ajustes de fecha y hora</button>
+    <button id="listo">Ya lo ajusté</button>
+  </div>
+  <p class="pie"></p>
+</main>
+<script>
+  var min = parseInt(shell.param("min") || "0", 10);
+  if (min > 0) document.getElementById("detalle").textContent = "La hora de este equipo está corrida " + (min >= 120 ? Math.round(min / 60) + " horas" : min + " minutos") + ". Así Alfredo no puede conectarse de forma segura ni mostrar bien los tiempos de los pedidos.";
+  shell.invoke("shell_state").then(function (s) {
+    if (s.platform === "macos") document.querySelectorAll("ol li")[1].textContent = "Activa «Ajustar la hora automáticamente».";
+  });
+  document.getElementById("ajustes").onclick = function () { shell.invoke("shell_open_clock_settings"); };
+  document.getElementById("listo").onclick = function () { shell.invoke("shell_retry"); };
+</script>
+</body>
+</html>

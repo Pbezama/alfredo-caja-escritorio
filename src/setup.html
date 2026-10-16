@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Conecta este equipo con tu local · Alfredo Caja</title><link rel="stylesheet" href="shell.css"><script src="shell.js"></script></head>
+<body>
+<main>
+  <div class="marca"><img src="icono.png" alt=""><span>Alfredo Caja</span></div>
+  <h1>Conecta este equipo con tu local</h1>
+  <p>Escribe la dirección de tu local o pega el enlace que te dio Alfredo. Por ejemplo: <strong>milocal</strong> o <strong>milocal.app.asistentealfredo.cl</strong>.</p>
+  <form id="f" autocomplete="off">
+    <label for="local">Dirección del local</label>
+    <input id="local" name="local" placeholder="milocal" autofocus required>
+    <div class="error" id="error" role="alert"></div>
+    <div class="acciones">
+      <button class="primario" id="seguir" type="submit">Conectar</button>
+      <button type="button" id="volver" hidden>Cancelar</button>
+    </div>
+  </form>
+  <p class="pie"></p>
+</main>
+<script>
+  var f = document.getElementById("f"), err = document.getElementById("error"), btn = document.getElementById("seguir");
+  var cambiar = shell.param("cambiar") === "1";
+  if (cambiar) {
+    document.querySelector("h1").textContent = "Cambiar de local";
+    document.querySelector("p").textContent = "Este equipo dejará de recibir los pedidos del local actual y se quitarán sus impresoras. Escribe la dirección del otro local.";
+    var v = document.getElementById("volver");
+    v.hidden = false;
+    v.onclick = function () { shell.invoke("shell_retry"); };
+  }
+  f.onsubmit = function (e) {
+    e.preventDefault();
+    err.textContent = "";
+    btn.disabled = true;
+    btn.textContent = "Verificando…";
+    shell.invoke("setup_validate", { input: document.getElementById("local").value })
+      .then(function (r) {
+        if (cambiar && !confirm("¿Conectar este equipo con " + (r.name || r.slug) + "?")) throw { message: "" };
+        btn.textContent = "Conectando con " + (r.name || r.slug) + "…";
+        return shell.invoke("setup_save", { origin: r.origin });
+      })
+      .catch(function (e) {
+        err.textContent = (e && e.message) || "";
+        btn.disabled = false;
+        btn.textContent = "Conectar";
+      });
+  };
+</script>
+</body>
+</html>

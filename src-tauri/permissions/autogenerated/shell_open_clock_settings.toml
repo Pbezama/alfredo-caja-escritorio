@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shell-open-clock-settings"
+description = "Enables the shell_open_clock_settings command without any pre-configured scope."
+commands.allow = ["shell_open_clock_settings"]
+
+[[permission]]
+identifier = "deny-shell-open-clock-settings"
+description = "Denies the shell_open_clock_settings command without any pre-configured scope."
+commands.deny = ["shell_open_clock_settings"]

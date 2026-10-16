@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-setup-validate"
+description = "Enables the setup_validate command without any pre-configured scope."
+commands.allow = ["setup_validate"]
+
+[[permission]]
+identifier = "deny-setup-validate"
+description = "Denies the setup_validate command without any pre-configured scope."
+commands.deny = ["setup_validate"]

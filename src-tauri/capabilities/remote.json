@@ -1,0 +1,33 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "remote",
+  "description": "La web staff del local (y sólo ella) usa el puente window.alfredoDesktop. Sin shell ni sistema de archivos: imprimir bytes, avisar, encender la pantalla, actualizar y soporte.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://*.app.asistentealfredo.cl/*", "https://*.app.restaurantya.cl/*"]
+  },
+  "permissions": [
+    "allow-ping",
+    "allow-page-ready",
+    "allow-desktop-info",
+    "allow-printers-list",
+    "allow-printers-save",
+    "allow-printers-remove",
+    "allow-printers-discover",
+    "allow-printers-print",
+    "allow-printers-status",
+    "allow-notify-incoming",
+    "allow-notify-clear",
+    "allow-window-bring-to-front",
+    "allow-window-set-kiosk",
+    "allow-power-keep-awake",
+    "allow-update-check",
+    "allow-update-install",
+    "allow-support-start-remote",
+    "allow-support-copy-diagnostics",
+    "allow-session-remember",
+    "allow-session-recall",
+    "allow-settings-set-autostart",
+    "allow-shell-quit"
+  ]
+}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Se fusiona con el Info.plist que genera Tauri (bundle.macOS.infoPlist en tauri.conf.json, F9).
+     Textos de los permisos que pide macOS (T10.2, T10.4). -->
+<plist version="1.0">
+<dict>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.business</string>
+  <key>NSLocalNetworkUsageDescription</key><string>Alfredo Caja busca e imprime en las impresoras de red de tu local.</string>
+  <key>NSBonjourServices</key>
+  <array><string>_pdl-datastream._tcp</string><string>_printer._tcp</string><string>_ipp._tcp</string></array>
+  <key>NSAppleEventsUsageDescription</key><string>Alfredo Caja pide la clave de administrador para crear la cola de tu impresora.</string>
+</dict>
+</plist>

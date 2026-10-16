@@ -1,0 +1,30 @@
+/* Páginas locales de Alfredo Caja (setup, sin conexión, reloj, actualizar). Paleta «Salsa Alfredo». */
+:root {
+  --fondo: #F6EEDF; --superficie: #FCF7EE; --texto: #241A12; --suave: #6B5A48;
+  --acento: #E8B04A; --acento-fuerte: #D9A23A; --acento-tinta: #8F5E10;
+  --borde: #857057; --en-contra: #A9271B; --a-favor: #1B6F44;
+  font-family: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--fondo); color: var(--texto); }
+body { display: grid; place-items: center; padding: 24px; }
+main { width: min(560px, 100%); background: var(--superficie); border: 1px solid #E6D9C2; border-radius: 16px; padding: 32px; box-shadow: 0 8px 30px rgba(36, 26, 18, .08); }
+.marca { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.marca img { width: 44px; height: 44px; border-radius: 10px; }
+.marca span { font-weight: 700; font-size: 1.05rem; }
+h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 8px; }
+p { line-height: 1.5; margin: 0 0 12px; color: var(--suave); }
+label { display: block; font-weight: 600; font-size: .85rem; margin: 16px 0 6px; }
+input { width: 100%; font: inherit; padding: 12px 14px; border: 1.5px solid var(--borde); border-radius: 10px; background: #fff; color: var(--texto); }
+input:focus { outline: 3px solid rgba(232, 176, 74, .5); outline-offset: 1px; }
+.acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+button { font: inherit; font-weight: 600; padding: 12px 18px; border-radius: 10px; cursor: pointer; border: 1.5px solid var(--borde); background: transparent; color: var(--texto); }
+button.primario { background: var(--texto); color: var(--fondo); border-color: var(--texto); }
+button:disabled { opacity: .5; cursor: default; }
+.error { color: var(--en-contra); font-weight: 600; min-height: 1.5em; margin-top: 10px; }
+.ok { color: var(--a-favor); font-weight: 600; }
+.cuenta { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 2.25rem; font-weight: 600; margin: 12px 0; }
+ol { padding-left: 1.2em; line-height: 1.7; color: var(--suave); }
+.pie { margin-top: 18px; font-size: .75rem; color: var(--suave); }
+.giro { width: 28px; height: 28px; border: 3px solid #E6D9C2; border-top-color: var(--acento-fuerte); border-radius: 50%; animation: g 1s linear infinite; margin: 8px 0; }
+@keyframes g { to { transform: rotate(360deg); } }

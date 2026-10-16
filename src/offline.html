@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Sin conexión · Alfredo Caja</title><link rel="stylesheet" href="shell.css"><script src="shell.js"></script></head>
+<body>
+<main>
+  <div class="marca"><img src="icono.png" alt=""><span>Alfredo Caja</span></div>
+  <h1>Cargando, esperando conexión a internet</h1>
+  <p id="motivo">No pudimos abrir Alfredo. Revisa el Wi-Fi o el cable de red del equipo.</p>
+  <div class="cuenta" id="cuenta" aria-live="polite"></div>
+  <div class="acciones">
+    <button class="primario" id="ahora">Reintentar ahora</button>
+    <button id="diag">Copiar diagnóstico</button>
+  </div>
+  <div class="ok" id="aviso"></div>
+  <p class="pie"></p>
+</main>
+<script>
+  var s = parseInt(shell.param("s") || "5", 10) || 5;
+  if (shell.param("motivo") === "timeout") document.getElementById("motivo").textContent = "Alfredo está tardando demasiado en cargar. Revisa la conexión del equipo.";
+  var cuenta = document.getElementById("cuenta");
+  var reintentar = function () {
+    clearInterval(t);
+    cuenta.textContent = "Reintentando…";
+    shell.invoke("shell_retry").catch(function () {});
+  };
+  var pintar = function () { cuenta.textContent = "Se volverá a intentar en " + s + "…"; };
+  pintar();
+  var t = setInterval(function () { s -= 1; if (s <= 0) reintentar(); else pintar(); }, 1000);
+  window.addEventListener("online", reintentar);
+  document.getElementById("ahora").onclick = reintentar;
+  document.getElementById("diag").onclick = function () {
+    shell.invoke("support_copy_diagnostics").then(function () { document.getElementById("aviso").textContent = "Diagnóstico copiado."; });
+  };
+</script>
+</body>
+</html>

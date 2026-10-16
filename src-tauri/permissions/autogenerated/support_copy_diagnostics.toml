@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-support-copy-diagnostics"
+description = "Enables the support_copy_diagnostics command without any pre-configured scope."
+commands.allow = ["support_copy_diagnostics"]
+
+[[permission]]
+identifier = "deny-support-copy-diagnostics"
+description = "Denies the support_copy_diagnostics command without any pre-configured scope."
+commands.deny = ["support_copy_diagnostics"]

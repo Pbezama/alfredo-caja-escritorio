@@ -1,0 +1,170 @@
+# Alfredo Caja para Windows (F9 T9.10): tests de Rust, build del instalador NSIS en
+# windows-latest, firma del updater de Tauri, firma Authenticode (si hay certificado) y release.
+#
+# - pull_request / push a main con cambios en apps/desktop: cargo test + build (artefacto).
+# - etiqueta desktop-vX.Y.Z (o workflow_dispatch con `publicar`): además crea la release de
+#   GitHub (prerelease = canal beta) y registra la versión INACTIVA en
+#   POST /api/control/desktop-releases. Se activa a mano tras la QA (T9.12).
+#
+# El mismo archivo corre en el espejo público Pbezama/alfredo-caja-escritorio (tools/release/
+# desktop-espejo.sh), con DESKTOP_DIR=. — el repo privado no tiene minutos de Actions mientras
+# la facturación de GitHub esté detenida (16-10-2026).
+#
+# Secretos:
+#   TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD  firma del updater (obligatoria para publicar)
+#   DESKTOP_PUBLISH_TOKEN                                          registrar la versión en el backend
+#   ES_USERNAME, ES_PASSWORD, ES_CREDENTIAL_ID, ES_TOTP_SECRET     Authenticode con SSL.com eSigner (opcional:
+#                                                                  sin ellos el instalador sale SIN firmar, canal beta)
+name: desktop-release
+on:
+  push:
+    branches: [main]
+    tags: ["desktop-v*"]
+    paths: ["apps/desktop/**", ".github/workflows/desktop-release.yml", "src-tauri/**", "src/**"]
+  pull_request:
+    paths: ["apps/desktop/**", ".github/workflows/desktop-release.yml"]
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Crear la release y registrar la versión (beta, inactiva)"
+        type: boolean
+        default: false
+
+env:
+  DESKTOP_DIR: .
+  API_BASE: https://api.asistentealfredo.cl/api
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ env.DESKTOP_DIR }}/src-tauri
+
+      - name: Versión desde la etiqueta
+        id: ver
+        run: |
+          V=$(node -p "require('./$DESKTOP_DIR/package.json').version")
+          if [[ "$GITHUB_REF" == refs/tags/desktop-v* ]]; then
+            V="${GITHUB_REF#refs/tags/desktop-v}"
+            node -e "const f='./$DESKTOP_DIR/package.json';const p=require(f);p.version='$V';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          PUB=false
+          if [[ "$GITHUB_REF" == refs/tags/desktop-v* || "${{ inputs.publicar }}" == "true" ]]; then PUB=true; fi
+          echo "publicar=$PUB" >> "$GITHUB_OUTPUT"
+          echo "Alfredo Caja $V (publicar=$PUB)"
+
+      - name: Tests de Rust (lista blanca, reloj, reintentos, DOC_INFO_1, serie, DLE EOT, subredes, deviceId, hash)
+        working-directory: ${{ env.DESKTOP_DIR }}/src-tauri
+        run: cargo test --locked
+
+      - name: Firma Authenticode (si hay certificado)
+        id: authenticode
+        env:
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          ES_CREDENTIAL_ID: ${{ secrets.ES_CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+        run: |
+          if [[ -n "$ES_USERNAME" && -n "$ES_PASSWORD" && -n "$ES_CREDENTIAL_ID" && -n "$ES_TOTP_SECRET" ]]; then
+            # CodeSignTool de SSL.com (eSigner, HSM en la nube): firma el .exe y el instalador.
+            curl -sSL -o cst.zip https://www.ssl.com/download/codesigntool-for-windows/
+            mkdir -p "$RUNNER_TEMP/cst" && unzip -q cst.zip -d "$RUNNER_TEMP/cst"
+            CST=$(cygpath -w "$(ls -d "$RUNNER_TEMP"/cst/*/ 2>/dev/null | head -1 || echo "$RUNNER_TEMP/cst/")")
+            CMD="cmd /C \"cd /d $CST && CodeSignTool.bat sign -username=$ES_USERNAME -password=$ES_PASSWORD -credential_id=$ES_CREDENTIAL_ID -totp_secret=$ES_TOTP_SECRET -override=true -input_file_path=%1\""
+            node -e "require('fs').writeFileSync('sign.json', JSON.stringify({bundle:{windows:{signCommand: process.argv[1]}}}))" "$CMD"
+            echo "config=--config sign.json" >> "$GITHUB_OUTPUT"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Sin certificado de firma de código: el instalador sale SIN firma Authenticode (canal beta, aviso de SmartScreen)."
+            echo "config=" >> "$GITHUB_OUTPUT"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build (NSIS + firma del updater)
+        working-directory: ${{ env.DESKTOP_DIR }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          ALFREDO_DESKTOP_SENTRY_DSN: ${{ secrets.ALFREDO_DESKTOP_SENTRY_DSN }}
+        run: |
+          EXTRA=""
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            echo "Sin TAURI_SIGNING_PRIVATE_KEY: build sin artefactos del updater (sólo verificación)."
+            EXTRA='--config {"bundle":{"createUpdaterArtifacts":false}}'
+          fi
+          npx --yes @tauri-apps/cli@2 build --bundles nsis ${{ steps.authenticode.outputs.config }} $EXTRA
+
+      - name: Verificar la firma Authenticode
+        if: steps.authenticode.outputs.signed == 'true'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "$env:DESKTOP_DIR/src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          $sig = Get-AuthenticodeSignature $exe.FullName
+          if ($sig.Status -ne 'Valid') { throw "Firma Authenticode inválida: $($sig.Status)" }
+          $sig.SignerCertificate.Subject
+
+      - name: Artefactos
+        id: art
+        run: |
+          D="$DESKTOP_DIR/src-tauri/target/release/bundle/nsis"
+          ls -la "$D"
+          EXE=$(ls "$D"/*-setup.exe | head -1)
+          echo "exe=$EXE" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c %s "$EXE")" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$EXE" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alfredo-caja-windows-${{ steps.ver.outputs.version }}
+          path: ${{ env.DESKTOP_DIR }}/src-tauri/target/release/bundle/nsis/*
+          if-no-files-found: error
+
+      - name: Release de GitHub (beta)
+        if: steps.ver.outputs.publicar == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.ver.outputs.version }}
+          SIGNED: ${{ steps.authenticode.outputs.signed }}
+        run: |
+          D="$DESKTOP_DIR/src-tauri/target/release/bundle/nsis"
+          TAG="desktop-v$V"
+          NOTA="Alfredo Caja para Windows $V (beta)."
+          [[ "$SIGNED" != "true" ]] && NOTA="$NOTA Instalador sin firma de código todavía: Windows puede mostrar «Windows protegió su PC» → «Más información» → «Ejecutar de todas formas»."
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --prerelease --title "Alfredo Caja $V (Windows, beta)" --notes "$NOTA" --target "$GITHUB_SHA"
+          # Nombre sin espacios para la URL de descarga.
+          cp "${{ steps.art.outputs.exe }}" "Alfredo-Caja_${V}_x64-setup.exe"
+          cp "${{ steps.art.outputs.exe }}.sig" "Alfredo-Caja_${V}_x64-setup.exe.sig"
+          gh release upload "$TAG" "Alfredo-Caja_${V}_x64-setup.exe" "Alfredo-Caja_${V}_x64-setup.exe.sig" --clobber
+
+      - name: Registrar la versión (inactiva) en el backend
+        if: steps.ver.outputs.publicar == 'true'
+        env:
+          DESKTOP_PUBLISH_TOKEN: ${{ secrets.DESKTOP_PUBLISH_TOKEN }}
+          V: ${{ steps.ver.outputs.version }}
+          SIGNED: ${{ steps.authenticode.outputs.signed }}
+        run: |
+          if [[ -z "$DESKTOP_PUBLISH_TOKEN" ]]; then echo "Sin DESKTOP_PUBLISH_TOKEN: no se registra"; exit 0; fi
+          node "$( [[ -f tools/release/desktop-publicar.mjs ]] && echo tools/release/desktop-publicar.mjs || echo desktop-publicar.mjs )" \
+            --version "$V" \
+            --url "https://github.com/${GITHUB_REPOSITORY}/releases/download/desktop-v$V/Alfredo-Caja_${V}_x64-setup.exe" \
+            --file "Alfredo-Caja_${V}_x64-setup.exe" \
+            --sig "Alfredo-Caja_${V}_x64-setup.exe.sig" \
+            --channel beta \
+            --authenticode "$SIGNED"

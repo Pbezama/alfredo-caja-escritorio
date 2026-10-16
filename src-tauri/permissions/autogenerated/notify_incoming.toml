@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notify-incoming"
+description = "Enables the notify_incoming command without any pre-configured scope."
+commands.allow = ["notify_incoming"]
+
+[[permission]]
+identifier = "deny-notify-incoming"
+description = "Denies the notify_incoming command without any pre-configured scope."
+commands.deny = ["notify_incoming"]

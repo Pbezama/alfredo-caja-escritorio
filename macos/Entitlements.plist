@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Alfredo Caja para Mac (F10 T10.9): Developer ID con hardened runtime, sin sandbox (USB, serie
+     y el updater propio). WKWebView corre fuera del proceso: no hace falta JIT. Si el spike (T10.1)
+     muestra que algo lo pide, se agrega acá con su motivo. -->
+<plist version="1.0">
+<dict>
+</dict>
+</plist>

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-window-bring-to-front"
+description = "Enables the window_bring_to_front command without any pre-configured scope."
+commands.allow = ["window_bring_to_front"]
+
+[[permission]]
+identifier = "deny-window-bring-to-front"
+description = "Denies the window_bring_to_front command without any pre-configured scope."
+commands.deny = ["window_bring_to_front"]

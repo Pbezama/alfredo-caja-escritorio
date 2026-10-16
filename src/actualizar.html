@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Actualizando · Alfredo Caja</title><link rel="stylesheet" href="shell.css"><script src="shell.js"></script></head>
+<body>
+<main>
+  <div class="marca"><img src="icono.png" alt=""><span>Alfredo Caja</span></div>
+  <h1>Hay que actualizar Alfredo Caja para seguir recibiendo pedidos</h1>
+  <p id="version">Estamos instalando la versión nueva. Toma menos de un minuto.</p>
+  <ol>
+    <li>Descargando la actualización.</li>
+    <li>Instalando (puede aparecer una ventana de instalación: no la cierres).</li>
+    <li>Alfredo Caja se vuelve a abrir solo.</li>
+    <li>Si te pide el PIN, entra como siempre.</li>
+  </ol>
+  <div class="giro" id="giro" aria-hidden="true"></div>
+  <div class="error" id="error" role="alert"></div>
+  <div class="acciones">
+    <button class="primario" id="reintentar" hidden>Reintentar</button>
+    <button id="soporte">Llamar a soporte</button>
+  </div>
+  <p class="pie"></p>
+</main>
+<script>
+  var e = shell.param("error");
+  if (e) {
+    document.getElementById("error").textContent = e;
+    document.getElementById("giro").hidden = true;
+    var r = document.getElementById("reintentar");
+    r.hidden = false;
+    r.onclick = function () {
+      r.disabled = true;
+      document.getElementById("error").textContent = "";
+      document.getElementById("giro").hidden = false;
+      shell.invoke("update_install").catch(function (x) { document.getElementById("error").textContent = (x && x.message) || "No se pudo instalar."; r.disabled = false; });
+    };
+  }
+  shell.invoke("shell_state").then(function (s) { if (s.updateVersion) document.getElementById("version").textContent = "Estamos instalando la versión " + s.updateVersion + ". Toma menos de un minuto."; });
+  document.getElementById("soporte").onclick = function () { location.href = "tel:+56229149547"; };
+</script>
+</body>
+</html>

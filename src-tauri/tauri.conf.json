@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Alfredo Caja",
+  "mainBinaryName": "Alfredo Caja",
+  "version": "../package.json",
+  "identifier": "cl.asistentealfredo.caja.escritorio",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [],
+    "security": {
+      "csp": null,
+      "capabilities": ["local", "remote"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "app", "dmg"],
+    "publisher": "CreceTec SpA",
+    "copyright": "© 2026 CreceTec SpA",
+    "category": "Business",
+    "shortDescription": "Recibe e imprime los pedidos de tu local",
+    "longDescription": "Alfredo Caja para escritorio: la caja de Alfredo con impresión directa en la térmica, alarma de pedidos que suena sola, bandeja del sistema y actualización automática.",
+    "homepage": "https://asistentealfredo.cl",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "allowDowngrades": false,
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Spanish"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "windows/hooks.nsh",
+        "startMenuFolder": "Alfredo"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM5NUE0QUU1MjA3RkY5RjMKUldUeitYOGc1VXBhT1NJSWNQTDNaam5YVTRsblBCaG9ReE1CYmM1azBURmJxdW4vQ3JiKzVudTAK",
+      "endpoints": ["https://api.asistentealfredo.cl/api/desktop/update?target={{target}}&arch={{arch}}&current_version={{current_version}}"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}
